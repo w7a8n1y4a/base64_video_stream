@@ -1,4 +1,6 @@
 .venv
+*.txt
+*.mp4
 env.json
 schema.json
 log.json
