@@ -1,0 +1,8 @@
+.git
+.gitignore
+.pepeignore
+env_example.json
+schema_example.json
+README.md
+LICENSE
+pepeunit.toml

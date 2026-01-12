@@ -1,0 +1,19 @@
+{   
+    "input_base_topic": [
+        "update/pepeunit",
+        "env_update/pepeunit",
+        "schema_update/pepeunit",
+        "log_sync/pepeunit"
+    ],
+    "output_base_topic": [
+        "state/pepeunit",
+        "log/pepeunit"
+    ],
+    "input_topic": [
+        "video_processing_command/pepeunit"
+    ],
+    "output_topic": [
+        "full_frame_stream/pepeunit",
+        "library_list/pepeunit"
+    ]
+}
