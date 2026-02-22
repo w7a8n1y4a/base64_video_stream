@@ -1,6 +1,6 @@
 [project]
 name = "base64-video-stream"
-version = "1.0.0"
+version = "1.1.0"
 description = "Stream base64-encoded video frames via pepeunit-client (MQTT/REST)."
 authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
@@ -22,6 +22,7 @@ dependencies = [
   "paho-mqtt==2.1.0",
   "pepeunit-client==1.1.0",
   "psutil==7.2.1",
+  "Pillow>=10.0.0",
   "pycparser==2.23",
   "tqdm==4.67.1",
 ]

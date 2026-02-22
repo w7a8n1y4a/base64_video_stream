@@ -1,60 +1,105 @@
-import time
-import sys
-import os
-from pepeunit_client.client import PepeunitClient
+import re
 
-DEFAULT_FPS = 10
+from pepeunit_client import PepeunitClient, RestartMode
+from pepeunit_client.enums import SearchTopicType, SearchScope
+
+from src.enums import EncoderAction
+from src.renderer import Renderer
+from src.video_processor import VideoProcessor
+from src.streamer import Streamer
+from src.navigator import Navigator
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python stream.py <frames_file.txt> [-fps N]")
-        sys.exit(1)
+def get_version() -> str:
+    try:
+        with open('pyproject.toml', 'r') as f:
+            for line in f:
+                if line.strip().startswith('version'):
+                    return line.split('=', 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return '?.?.?'
 
-    frames_file = sys.argv[1]
 
-    fps = DEFAULT_FPS
-    if "-fps" in sys.argv:
-        i = sys.argv.index("-fps")
-        fps = float(sys.argv[i + 1])
-        if fps <= 0:
-            raise ValueError("FPS must be > 0")
-
-    if not os.path.exists(frames_file):
-        raise FileNotFoundError(frames_file)
-
-    delay = 1.0 / fps
-
+def main() -> None:
     client = PepeunitClient(
-        env_file_path="env.json",
-        schema_file_path="schema.json",
-        log_file_path="log.json",
+        env_file_path='env.json',
+        schema_file_path='schema.json',
+        log_file_path='log.json',
         enable_mqtt=True,
         enable_rest=True,
+        restart_mode=RestartMode.RESTART_EXEC,
     )
 
+    fps = getattr(client.settings, 'FPS', 10)
+    width = getattr(client.settings, 'WIDTH', 128)
+    height = getattr(client.settings, 'HEIGHT', 64)
+    client.cycle_speed = 1.0 / fps
+
+    version = get_version()
+
+    renderer = Renderer(width, height)
+    streamer = Streamer(client)
+    streamer.set_renderer(renderer)
+
+    video_processor = VideoProcessor(
+        videos_dir='videos',
+        client=client,
+        width=width,
+        height=height,
+        target_fps=fps,
+    )
+
+    navigator = Navigator(
+        video_processor=video_processor,
+        renderer=renderer,
+        streamer=streamer,
+        version=version,
+        icon_path='icon.png',
+    )
+
+    client.logger.info('Synchronizing video library state...')
+    video_processor.scan_and_sync()
+    client.logger.info('Video library synchronized')
+
+    def on_input(client_ref: PepeunitClient, msg) -> None:
+        try:
+            topic_parts = msg.topic.split('/')
+            if len(topic_parts) == 3:
+                topic_name = client_ref.schema.find_topic_by_unit_node(
+                    msg.topic, SearchTopicType.FULL_NAME, SearchScope.INPUT
+                )
+                if topic_name == 'encoder_action/pepeunit':
+                    action = EncoderAction(msg.payload.strip())
+                    navigator.handle_action(action)
+        except ValueError:
+            client_ref.logger.warning(f'Unknown encoder action: {msg.payload}')
+        except Exception as e:
+            client_ref.logger.error(f'Input handler error: {e}')
+
+    def on_output(client_ref: PepeunitClient) -> None:
+        frame = navigator.get_next_frame()
+        if frame:
+            streamer.send_frame(frame)
+
+    client.set_mqtt_input_handler(on_input)
+    client.set_output_handler(on_output)
+
+    video_processor.start_background()
+    client.logger.info('Background video processor started')
+
     client.mqtt_client.connect()
+    client.subscribe_all_schema_topics()
 
-    with open(frames_file, "r", encoding="utf-8") as f:
-        frames = [line.strip() for line in f if line.strip()]
-
-    print(f"Loaded {len(frames)} frames")
-    print(f"Streaming at {fps} FPS")
+    client.logger.info(f'Video Stream v{version} running at {fps} FPS')
 
     try:
-        while True:
-            for i, frame_b64 in enumerate(frames):
-                client.publish_to_topics("full_frame_stream/pepeunit", frame_b64)
-                print(f"Sent frame {i + 1}/{len(frames)}")
-                time.sleep(delay)
-
-    except KeyboardInterrupt:
-        print("\nStopped by user")
-
+        client.run_main_cycle()
     finally:
+        video_processor.stop()
         client.mqtt_client.disconnect()
+        client.logger.info('Shutdown complete')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-

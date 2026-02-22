@@ -4,3 +4,5 @@
 env.json
 schema.json
 log.json
+__pycache__/
+icon.png

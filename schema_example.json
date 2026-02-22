@@ -10,7 +10,7 @@
         "log/pepeunit"
     ],
     "input_topic": [
-        "video_processing_command/pepeunit"
+        "encoder_action/pepeunit"
     ],
     "output_topic": [
         "full_frame_stream/pepeunit",
