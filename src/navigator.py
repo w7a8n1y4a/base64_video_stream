@@ -49,7 +49,7 @@ class Navigator:
                         if isinstance(self._screen, LibraryScreen):
                             self._screen.refresh()
                         self._return_screen = None
-                elif action == EncoderAction.DOUBLE:
+                elif action == EncoderAction.ONE:
                     self._paused = not self._paused
                 elif action in (EncoderAction.LEFT, EncoderAction.RIGHT):
                     forward = action == EncoderAction.RIGHT
