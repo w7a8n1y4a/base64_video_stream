@@ -55,10 +55,9 @@ class SplashScreen(Screen):
         canvas = r.create_canvas()
 
         r.paste_image(canvas, self._get_icon(), 0, 0)
-        r.draw_line(canvas, 64, 0, 64, 63)
 
-        right_x = 68
-        r.draw_text(canvas, right_x, 4, 'Video', font=r._font)
+        right_x = 74
+        r.draw_text(canvas, right_x, 4, 'Pepeunit', font=r._font)
         r.draw_text(canvas, right_x, 16, 'Stream', font=r._font)
         r.draw_text(canvas, right_x, 32, f'v{self.nav.version}', font=r._font_small)
         r.draw_text(canvas, right_x, 50, 'AGPLv3', font=r._font_small)

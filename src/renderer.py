@@ -80,12 +80,13 @@ class Renderer:
         self.width = width
         self.height = height
         self._font: ImageFont.ImageFont = self._load_font(9)
-        self._font_small: ImageFont.ImageFont = self._load_font(8)
+        self._font_small: ImageFont.ImageFont = self._load_font(10)
         self._line_height = self._calc_line_height(self._font)
         self._line_height_small = self._calc_line_height(self._font_small)
         self._content_y = HEADER_HEIGHT + 1
         self._content_height = self.height - self._content_y
-        self._items_per_page = max(1, self._content_height // self._line_height_small)
+        self._items_per_page = 4
+        self._item_height = self._content_height // self._items_per_page
         self._item_text_width = self.width - SCROLLBAR_WIDTH - ICON_SIZE - ICON_MARGIN - 4
 
     @staticmethod
@@ -201,20 +202,21 @@ class Renderer:
 
             if is_selected:
                 draw.rectangle(
-                    [0, y, self.width - SCROLLBAR_WIDTH - 1, y + self._line_height_small - 1],
+                    [0, y, self.width - SCROLLBAR_WIDTH - 1, y + self._item_height - 1],
                     fill=1,
                 )
 
+            icon_y = y + (self._item_height - ICON_SIZE) // 2
             icon_x = 1
             if icon_key:
-                self._draw_icon_8x8(img, icon_x, y, icon_key, invert=is_selected)
+                self._draw_icon_8x8(img, icon_x, icon_y, icon_key, invert=is_selected)
             elif status is not None:
                 if status == VideoStatus.PROCESSING:
-                    self._draw_progress_icon(img, icon_x, y, progress, invert=is_selected)
+                    self._draw_progress_icon(img, icon_x, icon_y, progress, invert=is_selected)
                 else:
                     icon_name = STATUS_ICON_MAP.get(status)
                     if icon_name:
-                        self._draw_icon_8x8(img, icon_x, y, icon_name, invert=is_selected)
+                        self._draw_icon_8x8(img, icon_x, icon_y, icon_name, invert=is_selected)
 
             text_x = ICON_SIZE + ICON_MARGIN + 1
             truncated = self._truncate_text(name, self._item_text_width, self._font_small)
@@ -224,7 +226,7 @@ class Renderer:
                 fill=0 if is_selected else 1,
                 font=self._font_small,
             )
-            y += self._line_height_small
+            y += self._item_height
 
         if len(items) > self._items_per_page:
             self._draw_scrollbar(img, len(items), self._items_per_page, scroll_offset)
