@@ -1,11 +1,11 @@
 import os
-import base64
 from typing import Optional, List, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from .enums import VideoStatus
+from .image_utils import pixels_to_sh1106_base64
 
 
 FONT_SEARCH_PATHS = [
@@ -82,19 +82,6 @@ HEADER_HEIGHT = 11
 SCROLLBAR_WIDTH = 4
 ICON_SIZE = 8
 ICON_MARGIN = 2
-
-
-def pixels_to_sh1106_base64(pixels: np.ndarray, width: int, height: int) -> str:
-    """Convert a 2D pixel array to SH1106 page-column buffer format, then base64 encode."""
-    buf = bytearray(width * height // 8)
-    for page in range(height // 8):
-        for bit in range(8):
-            y = page * 8 + bit
-            row = pixels[y, :]
-            for x in range(width):
-                if row[x]:
-                    buf[page * width + x] |= (1 << bit)
-    return base64.b64encode(bytes(buf)).decode('ascii')
 
 
 class Renderer:

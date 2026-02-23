@@ -6,11 +6,9 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import cv2
-import numpy as np
-from PIL import Image
 
 from .enums import VideoStatus
-from .renderer import pixels_to_sh1106_base64
+from .image_utils import process_frame
 
 
 @dataclass
@@ -22,62 +20,11 @@ class FileEntry:
     progress: int = 0
 
 
-def floyd_steinberg_dither(img: np.ndarray) -> np.ndarray:
-    img = img.astype(np.float32)
-    h, w = img.shape
-    for y in range(h - 1):
-        for x in range(1, w - 1):
-            old = img[y, x]
-            new = 255.0 if old >= 128 else 0.0
-            err = old - new
-            img[y, x] = new
-            img[y, x + 1] += err * 7 / 16
-            img[y + 1, x - 1] += err * 3 / 16
-            img[y + 1, x] += err * 5 / 16
-            img[y + 1, x + 1] += err * 1 / 16
-    return np.clip(img, 0, 255).astype(np.uint8)
-
-
-def enhance_for_binary(gray: np.ndarray) -> np.ndarray:
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    contrast = clahe.apply(gray)
-    blur1 = cv2.GaussianBlur(contrast, (0, 0), 1.0)
-    blur2 = cv2.GaussianBlur(contrast, (0, 0), 2.0)
-    dog = cv2.subtract(blur1, blur2)
-    return cv2.addWeighted(contrast, 1.0, dog, 1.5, 0)
-
-
-def process_frame(frame: np.ndarray, width: int, height: int) -> str:
-    """Process a single BGR video frame to SH1106 base64."""
-    frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    enhanced = enhance_for_binary(gray)
-    binary = floyd_steinberg_dither(enhanced)
-    binary = np.where(binary >= 128, 255, 0).astype(np.uint8)
-    binary[0, :] = 0
-    binary[-1, :] = 0
-    binary[:, 0] = 0
-    binary[:, -1] = 0
-    return pixels_to_sh1106_base64(binary, width, height)
-
-
-def process_image_to_mono(image_path: str, target_w: int, target_h: int) -> Optional[Image.Image]:
-    """Load an image file, process with dithering, return monochrome PIL Image."""
-    frame = cv2.imread(image_path)
-    if frame is None:
-        return None
-    frame = cv2.resize(frame, (target_w, target_h), interpolation=cv2.INTER_AREA)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    enhanced = enhance_for_binary(gray)
-    binary = floyd_steinberg_dither(enhanced)
-    binary = np.where(binary >= 128, 255, 0).astype(np.uint8)
-    return Image.fromarray(binary, mode='L').convert('1')
-
-
 class VideoProcessor:
     def __init__(
         self,
         videos_dir: str,
+        frames_dir: str,
         client,
         width: int = 128,
         height: int = 64,
@@ -85,6 +32,7 @@ class VideoProcessor:
         scan_interval: float = 10.0,
     ):
         self.videos_dir = videos_dir
+        self.frames_dir = frames_dir
         self.client = client
         self.width = width
         self.height = height
@@ -97,6 +45,7 @@ class VideoProcessor:
         self._thread: Optional[threading.Thread] = None
 
         os.makedirs(videos_dir, exist_ok=True)
+        os.makedirs(frames_dir, exist_ok=True)
 
     def scan_and_sync(self) -> None:
         """Scan the videos directory and synchronize internal state with reality."""
@@ -265,15 +214,17 @@ class VideoProcessor:
 
             with open(frames_path, 'w', encoding='utf-8') as out:
                 while self._running:
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-
                     if frame_index >= next_frame:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
                         b64 = process_frame(frame, self.width, self.height)
                         out.write(b64 + '\n')
                         next_frame += frame_interval
                         processed += 1
+                    else:
+                        if not cap.grab():
+                            break
 
                     frame_index += 1
                     if frame_index % 50 == 0:
@@ -312,7 +263,7 @@ class VideoProcessor:
 
     def _frames_path(self, rel_path: str) -> str:
         base = os.path.splitext(rel_path)[0]
-        return os.path.join(self.videos_dir, base + '.txt')
+        return os.path.join(self.frames_dir, base + '.txt')
 
     def _find_all_mp4(self) -> List[str]:
         result = []
@@ -339,6 +290,6 @@ class VideoProcessor:
         try:
             with self._lock:
                 snapshot = dict(self._state)
-            self.client.rest_client.set_state_storage(snapshot)
+            self.client.rest_client.set_state_storage(json.dumps(snapshot))
         except Exception as e:
             self.client.logger.warning(f'Failed to save remote state: {e}')

@@ -44,6 +44,7 @@ def main() -> None:
 
     video_processor = VideoProcessor(
         videos_dir='videos',
+        frames_dir='frames',
         client=client,
         width=width,
         height=height,
@@ -53,7 +54,6 @@ def main() -> None:
     navigator = Navigator(
         video_processor=video_processor,
         renderer=renderer,
-        streamer=streamer,
         version=version,
         icon_path='icon.png',
     )
