@@ -218,51 +218,53 @@ class VideoDetailScreen(Screen):
         y = r._content_y + 1
         status = self.info.get('status', VideoStatus.PENDING)
         target_fps = int(self.nav.video_processor.target_fps)
+        font = r._font
+        lh = r._line_height
 
         if status == VideoStatus.ERROR:
-            r.draw_text(canvas, 2, y, 'Статус: Ошибка', font=r._font_small)
-            y += r._line_height_small
+            r.draw_text(canvas, 2, y, 'Статус: Ошибка', font=font)
+            y += lh
             error = self.info.get('error', 'Неизвестно')
-            r.draw_text_wrapped(canvas, 2, y, error, r.width - 4, font=r._font_small)
+            r.draw_text_wrapped(canvas, 2, y, error, r.width - 4, font=font)
 
         elif status == VideoStatus.PROCESSING:
             progress = self.info.get('progress', 0)
-            r.draw_text(canvas, 2, y, f'Обработка: {progress}%', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=r._font_small)
+            r.draw_text(canvas, 2, y, f'Обработка: {progress}%', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=font)
 
         elif status == VideoStatus.PENDING:
             queue = self.info.get('queue_position', 0)
-            r.draw_text(canvas, 2, y, 'Статус: Ожидание', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'В очереди перед: {queue}', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=r._font_small)
+            r.draw_text(canvas, 2, y, 'Статус: Ожидание', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'В очереди перед: {queue}', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=font)
 
         elif status == VideoStatus.READY:
             fps_val = self.info.get('fps')
             fps_str = str(int(fps_val)) if fps_val is not None else '?'
             frames = self.info.get('frame_count', '?')
-            r.draw_text(canvas, 2, y, 'Статус: Готово', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'FPS: {fps_str}', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=r._font_small)
+            r.draw_text(canvas, 2, y, 'Статус: Готово', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'FPS: {fps_str}', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=font)
 
         elif status == VideoStatus.WARNING:
             file_fps = self.info.get('fps')
             file_fps_str = str(int(file_fps)) if file_fps is not None else '?'
             frames = self.info.get('frame_count', '?')
-            r.draw_text(canvas, 2, y, 'FPS не совпадает!', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'Сейчас: {target_fps}  Файл: {file_fps_str}', font=r._font_small)
-            y += r._line_height_small
-            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=r._font_small)
-            y += r._line_height_small
+            r.draw_text(canvas, 2, y, 'FPS не совпадает!', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'Сейчас: {target_fps}  Файл: {file_fps_str}', font=font)
+            y += lh
+            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=font)
+            y += lh
             btn_text = 'Переделать'
-            tw = r._text_width(btn_text, r._font_small)
-            r.draw_rect(canvas, 1, y, tw + 4, r._line_height_small, fill=1)
-            r.draw_text(canvas, 3, y, btn_text, font=r._font_small, color=0)
+            tw = r._text_width(btn_text, font)
+            r.draw_rect(canvas, 1, y, tw + 4, lh, fill=1)
+            r.draw_text(canvas, 3, y, btn_text, font=font, color=0)
 
         return canvas
 
