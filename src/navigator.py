@@ -52,7 +52,7 @@ class Navigator:
                 elif action == EncoderAction.DOUBLE:
                     self._paused = not self._paused
                 elif action in (EncoderAction.LEFT, EncoderAction.RIGHT):
-                    forward = action == EncoderAction.LEFT
+                    forward = action == EncoderAction.RIGHT
                     delta = self._seek_frames if forward else -self._seek_frames
                     if self._playback.seek(delta):
                         sec = int(self._seek_seconds)
