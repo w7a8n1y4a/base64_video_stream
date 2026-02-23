@@ -60,6 +60,7 @@ class VideoProcessor:
                 old_status = entry.get('status', VideoStatus.PENDING.value)
                 if old_status == VideoStatus.READY.value:
                     if os.path.isfile(frames_path):
+                        self._ensure_frame_metadata(entry, frames_path)
                         new_state[rel] = entry
                     else:
                         new_state[rel] = {'status': VideoStatus.PENDING.value}
@@ -69,7 +70,7 @@ class VideoProcessor:
                     new_state[rel] = entry
             else:
                 if os.path.isfile(frames_path):
-                    new_state[rel] = {'status': VideoStatus.READY.value}
+                    new_state[rel] = self._build_ready_entry(frames_path)
                 else:
                     new_state[rel] = {'status': VideoStatus.PENDING.value}
 
@@ -326,6 +327,29 @@ class VideoProcessor:
                     'error': str(e),
                 }
             self.client.logger.error(f'Video processing error ({rel_path}): {e}')
+
+    def _ensure_frame_metadata(self, entry: dict, frames_path: str) -> None:
+        """Fill in missing fps/frame_count from the frames file."""
+        if 'frame_count' not in entry:
+            entry['frame_count'] = self._count_frames_in_file(frames_path)
+        if 'fps' not in entry:
+            entry['fps'] = self.target_fps
+        entry.setdefault('progress', 100)
+
+    def _build_ready_entry(self, frames_path: str) -> dict:
+        return {
+            'status': VideoStatus.READY.value,
+            'progress': 100,
+            'frame_count': self._count_frames_in_file(frames_path),
+            'fps': self.target_fps,
+        }
+
+    def _count_frames_in_file(self, frames_path: str) -> int:
+        try:
+            with open(frames_path, 'r', encoding='utf-8') as f:
+                return sum(1 for _ in f)
+        except Exception:
+            return 0
 
     def _frames_path(self, rel_path: str) -> str:
         base = os.path.splitext(rel_path)[0]
