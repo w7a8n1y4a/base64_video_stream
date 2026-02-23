@@ -2,7 +2,7 @@
     "FPS": 10,
     "WIDTH": 128,
     "HEIGHT": 64,
-    "ITEMS_PER_PAGE": 3,
+    "ITEMS_PER_PAGE": 4,
     "PU_DOMAIN": "unit.example.com",
     "PU_HTTP_TYPE": "http",
     "PU_APP_PREFIX": "/pepeunit",

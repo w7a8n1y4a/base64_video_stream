@@ -98,6 +98,9 @@ class Renderer:
         self._content_height = self.height - self._content_y
         auto = max(1, self._content_height // self._line_height_small)
         self._items_per_page = items_per_page if items_per_page is not None else auto
+        self._menu_line_height = self._content_height // self._items_per_page
+        self._menu_font = self._find_best_menu_font(self._menu_line_height)
+        self._menu_font_line_height = self._calc_line_height(self._menu_font)
         self._item_text_width = self.width - SCROLLBAR_WIDTH - ICON_SIZE - ICON_MARGIN - 4
 
     @staticmethod
@@ -106,6 +109,17 @@ class Renderer:
             return ImageFont.truetype(_FONT_PATH, size)
         except Exception:
             return ImageFont.load_default()
+
+    def _find_best_menu_font(self, target_line_height: int) -> ImageFont.ImageFont:
+        best = self._font_small
+        for size in range(8, 30):
+            font = self._load_font(size)
+            lh = self._calc_line_height(font)
+            if lh <= target_line_height:
+                best = font
+            else:
+                break
+        return best
 
     @staticmethod
     def _calc_line_height(font: ImageFont.ImageFont) -> int:
@@ -206,6 +220,9 @@ class Renderer:
         draw = ImageDraw.Draw(img)
         visible = items[scroll_offset: scroll_offset + self._items_per_page]
         y = self._content_y
+        mlh = self._menu_line_height
+        mf = self._menu_font
+        mflh = self._menu_font_line_height
 
         for i, (name, icon_key, status, progress) in enumerate(visible):
             actual_idx = scroll_offset + i
@@ -213,30 +230,32 @@ class Renderer:
 
             if is_selected:
                 draw.rectangle(
-                    [0, y, self.width - SCROLLBAR_WIDTH - 1, y + self._line_height_small - 1],
+                    [0, y, self.width - SCROLLBAR_WIDTH - 1, y + mlh - 1],
                     fill=1,
                 )
 
             icon_x = 1
+            icon_y = y + (mlh - ICON_SIZE) // 2
             if icon_key:
-                self._draw_icon_8x8(img, icon_x, y, icon_key, invert=is_selected)
+                self._draw_icon_8x8(img, icon_x, icon_y, icon_key, invert=is_selected)
             elif status is not None:
                 if status == VideoStatus.PROCESSING:
-                    self._draw_progress_icon(img, icon_x, y, progress, invert=is_selected)
+                    self._draw_progress_icon(img, icon_x, icon_y, progress, invert=is_selected)
                 else:
                     icon_name = STATUS_ICON_MAP.get(status)
                     if icon_name:
-                        self._draw_icon_8x8(img, icon_x, y, icon_name, invert=is_selected)
+                        self._draw_icon_8x8(img, icon_x, icon_y, icon_name, invert=is_selected)
 
             text_x = ICON_SIZE + ICON_MARGIN + 1
-            truncated = self._truncate_text(name, self._item_text_width, self._font_small)
+            text_y = y + (mlh - mflh) // 2
+            truncated = self._truncate_text(name, self._item_text_width, mf)
             draw.text(
-                (text_x, y),
+                (text_x, text_y),
                 truncated,
                 fill=0 if is_selected else 1,
-                font=self._font_small,
+                font=mf,
             )
-            y += self._line_height_small
+            y += mlh
 
         if len(items) > self._items_per_page:
             self._draw_scrollbar(img, len(items), self._items_per_page, scroll_offset)
