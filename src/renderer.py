@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from .enums import VideoStatus
-from .image_utils import pixels_to_sh1106_base64
+from .image_utils import pixels_to_sh1106_base64, sh1106_base64_to_image
 
 
 _FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Roboto-Regular.ttf')
@@ -360,6 +360,25 @@ class Renderer:
             if self._text_width(t, font) <= max_width:
                 return t
         return '..'
+
+    def overlay_on_frame(self, frame_b64: str, text: str) -> str:
+        """Decode a frame, draw a centered label on top, re-encode."""
+        img = sh1106_base64_to_image(frame_b64, self.width, self.height)
+        self._draw_overlay_label(img, text)
+        return self.canvas_to_base64(img)
+
+    def _draw_overlay_label(self, img: Image.Image, text: str) -> None:
+        draw = ImageDraw.Draw(img)
+        font = self._font
+        tw = self._text_width(text, font)
+        th = self._line_height
+        pad_x, pad_y = 6, 3
+        box_w = tw + pad_x * 2
+        box_h = th + pad_y * 2
+        bx = (self.width - box_w) // 2
+        by = (self.height - box_h) // 2
+        draw.rectangle([bx, by, bx + box_w - 1, by + box_h - 1], fill=0, outline=1)
+        draw.text((bx + pad_x, by + pad_y), text, fill=1, font=font)
 
     @property
     def items_per_page(self) -> int:

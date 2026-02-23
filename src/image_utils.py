@@ -14,6 +14,15 @@ def pixels_to_sh1106_base64(pixels: np.ndarray, width: int, height: int) -> str:
     return base64.b64encode(buf.tobytes()).decode('ascii')
 
 
+def sh1106_base64_to_image(b64: str, width: int, height: int) -> Image.Image:
+    """Decode an SH1106 base64 frame back to a 1-bit PIL Image."""
+    raw = base64.b64decode(b64)
+    buf = np.frombuffer(raw, dtype=np.uint8).reshape(height // 8, 1, width)
+    weights = (1 << np.arange(8, dtype=np.uint8)).reshape(1, 8, 1)
+    pixels = ((buf & weights) > 0).astype(np.uint8).reshape(height, width) * 255
+    return Image.fromarray(pixels, mode='L').convert('1')
+
+
 def enhance_for_binary(gray: np.ndarray) -> np.ndarray:
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     contrast = clahe.apply(gray)

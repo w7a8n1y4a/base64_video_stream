@@ -43,6 +43,35 @@ class Playback:
         self._frame_idx += 1
         return frame
 
+    def get_current_frame(self) -> Optional[str]:
+        """Return the frame at the current position without advancing."""
+        if not self._frames:
+            return None
+        idx = min(self._frame_idx, len(self._frames) - 1)
+        return self._frames[idx]
+
+    def seek(self, delta_frames: int) -> bool:
+        """Seek forward (positive) or backward (negative) by delta_frames.
+
+        Returns True if seek was performed, False if no frames are available.
+        """
+        if not self._frames:
+            return False
+
+        new_idx = self._frame_idx + delta_frames
+        if new_idx < 0:
+            self._frame_idx = 0
+        elif new_idx >= len(self._frames):
+            self._current_idx += 1
+            if self._current_idx >= len(self._playlist):
+                if self._shuffle:
+                    random.shuffle(self._playlist)
+                self._current_idx = 0
+            self._load_current()
+        else:
+            self._frame_idx = new_idx
+        return True
+
     def _load_current(self) -> None:
         if self._current_idx >= len(self._playlist):
             self._frames = []

@@ -15,10 +15,13 @@ class Navigator:
         video_processor: VideoProcessor,
         renderer: Renderer,
         version: str,
+        seek_seconds: float = 5.0,
     ):
         self.video_processor = video_processor
         self.renderer = renderer
         self.version = version
+        self._seek_seconds = seek_seconds
+        self._seek_frames = max(1, int(seek_seconds * video_processor.target_fps))
 
         self._lock = threading.Lock()
         self._screen: Screen = SplashScreen(self)
@@ -26,6 +29,9 @@ class Navigator:
         self._return_screen: Optional[Screen] = None
         self._temp_message: Optional[str] = None
         self._temp_until: float = 0
+        self._seek_overlay: Optional[str] = None
+        self._seek_overlay_until: float = 0
+        self._paused: bool = False
 
     def handle_action(self, action: EncoderAction) -> None:
         with self._lock:
@@ -37,11 +43,23 @@ class Navigator:
             if self._playback:
                 if action == EncoderAction.LONG:
                     self._playback = None
+                    self._paused = False
                     if self._return_screen:
                         self._screen = self._return_screen
                         if isinstance(self._screen, LibraryScreen):
                             self._screen.refresh()
                         self._return_screen = None
+                elif action == EncoderAction.DOUBLE:
+                    self._paused = not self._paused
+                elif action in (EncoderAction.LEFT, EncoderAction.RIGHT):
+                    forward = action == EncoderAction.LEFT
+                    delta = self._seek_frames if forward else -self._seek_frames
+                    if self._playback.seek(delta):
+                        sec = int(self._seek_seconds)
+                        self._seek_overlay = f'+{sec}' if forward else f'-{sec}'
+                        self._seek_overlay_until = time.time() + 0.5
+                    else:
+                        self.show_message('Нет данных')
                 return
 
             self._screen.on_action(action)
@@ -55,10 +73,19 @@ class Navigator:
                     return self._render_message(self._temp_message)
 
             if self._playback:
-                frame = self._playback.get_next_frame()
+                if self._paused:
+                    frame = self._playback.get_current_frame()
+                else:
+                    frame = self._playback.get_next_frame()
                 if frame:
+                    if self._seek_overlay and time.time() < self._seek_overlay_until:
+                        return self.renderer.overlay_on_frame(frame, self._seek_overlay)
+                    self._seek_overlay = None
+                    if self._paused:
+                        return self.renderer.overlay_on_frame(frame, '||')
                     return frame
                 self._playback = None
+                self._paused = False
                 if self._return_screen:
                     self._screen = self._return_screen
                     self._return_screen = None

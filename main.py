@@ -35,6 +35,7 @@ def main() -> None:
     width = getattr(client.settings, 'WIDTH', 128)
     height = getattr(client.settings, 'HEIGHT', 64)
     items_per_page = getattr(client.settings, 'ITEMS_PER_PAGE', None)
+    seek_seconds = getattr(client.settings, 'SEEK_SECONDS', 5)
     client.cycle_speed = 1.0 / fps
 
     version = get_version()
@@ -56,6 +57,7 @@ def main() -> None:
         video_processor=video_processor,
         renderer=renderer,
         version=version,
+        seek_seconds=seek_seconds,
     )
 
     client.logger.info('Synchronizing video library state...')
