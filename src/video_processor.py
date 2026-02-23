@@ -365,21 +365,46 @@ class VideoProcessor:
                     result.append(rel)
         return sorted(result)
 
-    def _load_remote_state(self) -> Dict[str, dict]:
-        try:
-            raw = self.client.rest_client.get_state_storage()
-            if raw:
-                data = json.loads(raw)
-                if isinstance(data, dict):
-                    return data
-        except Exception as e:
-            self.client.logger.warning(f'Failed to load remote state: {e}')
+    def _load_remote_state(self, retries: int = 3) -> Dict[str, dict]:
+        for attempt in range(retries):
+            try:
+                raw = self.client.rest_client.get_state_storage()
+                if raw:
+                    data = json.loads(raw)
+                    if isinstance(data, dict):
+                        return data
+                return {}
+            except Exception as e:
+                if attempt < retries - 1:
+                    delay = 2 ** attempt
+                    self.client.logger.warning(
+                        f'Failed to load remote state (attempt {attempt + 1}/{retries}): {e}, '
+                        f'retrying in {delay}s'
+                    )
+                    time.sleep(delay)
+                else:
+                    self.client.logger.warning(
+                        f'Failed to load remote state after {retries} attempts: {e}'
+                    )
         return {}
 
-    def _save_remote_state(self) -> None:
-        try:
-            with self._lock:
-                snapshot = dict(self._state)
-            self.client.rest_client.set_state_storage(json.dumps(snapshot))
-        except Exception as e:
-            self.client.logger.warning(f'Failed to save remote state: {e}')
+    def _save_remote_state(self, retries: int = 3) -> None:
+        with self._lock:
+            snapshot = dict(self._state)
+        payload = json.dumps(snapshot)
+        for attempt in range(retries):
+            try:
+                self.client.rest_client.set_state_storage(payload)
+                return
+            except Exception as e:
+                if attempt < retries - 1:
+                    delay = 2 ** attempt
+                    self.client.logger.warning(
+                        f'Failed to save remote state (attempt {attempt + 1}/{retries}): {e}, '
+                        f'retrying in {delay}s'
+                    )
+                    time.sleep(delay)
+                else:
+                    self.client.logger.warning(
+                        f'Failed to save remote state after {retries} attempts: {e}'
+                    )
