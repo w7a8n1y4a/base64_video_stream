@@ -14,3 +14,4 @@ class VideoStatus(Enum):
     PROCESSING = "Processing"
     PENDING = "Pending"
     ERROR = "Error"
+    WARNING = "Warning"

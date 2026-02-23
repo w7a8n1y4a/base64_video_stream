@@ -34,11 +34,12 @@ def main() -> None:
     fps = getattr(client.settings, 'FPS', 10)
     width = getattr(client.settings, 'WIDTH', 128)
     height = getattr(client.settings, 'HEIGHT', 64)
+    items_per_page = getattr(client.settings, 'ITEMS_PER_PAGE', None)
     client.cycle_speed = 1.0 / fps
 
     version = get_version()
 
-    renderer = Renderer(width, height)
+    renderer = Renderer(width, height, items_per_page=items_per_page)
     streamer = Streamer(client)
     streamer.set_renderer(renderer)
 

@@ -84,9 +84,14 @@ class VideoProcessor:
         if entry is None:
             return VideoStatus.PENDING
         try:
-            return VideoStatus(entry['status'])
+            status = VideoStatus(entry['status'])
         except (KeyError, ValueError):
             return VideoStatus.PENDING
+        if status == VideoStatus.READY:
+            stored_fps = entry.get('fps')
+            if stored_fps is not None and stored_fps != self.target_fps:
+                return VideoStatus.WARNING
+        return status
 
     def get_progress(self, rel_path: str) -> int:
         with self._lock:
@@ -94,6 +99,55 @@ class VideoProcessor:
         if entry is None:
             return 0
         return entry.get('progress', 0)
+
+    def get_video_info(self, rel_path: str) -> dict:
+        """Return detailed info about a video including derived WARNING status."""
+        with self._lock:
+            entry = dict(self._state.get(rel_path, {}))
+
+        status_str = entry.get('status', VideoStatus.PENDING.value)
+        try:
+            status = VideoStatus(status_str)
+        except ValueError:
+            status = VideoStatus.PENDING
+
+        if status == VideoStatus.READY:
+            stored_fps = entry.get('fps')
+            if stored_fps is not None and stored_fps != self.target_fps:
+                status = VideoStatus.WARNING
+
+        info = dict(entry)
+        info['status'] = status
+
+        if status == VideoStatus.PENDING:
+            info['queue_position'] = self._get_queue_position(rel_path)
+
+        return info
+
+    def force_reprocess(self, rel_path: str) -> None:
+        """Delete the cached txt and mark the video as PENDING."""
+        frames_path = self._frames_path(rel_path)
+        try:
+            os.remove(frames_path)
+        except OSError:
+            pass
+        with self._lock:
+            self._state[rel_path] = {'status': VideoStatus.PENDING.value}
+        self._save_remote_state()
+
+    def clear_all_txt(self) -> None:
+        """Delete all cached txt files and reset all statuses to PENDING."""
+        for root, _dirs, files in os.walk(self.frames_dir):
+            for f in files:
+                if f.lower().endswith('.txt'):
+                    try:
+                        os.remove(os.path.join(root, f))
+                    except OSError:
+                        pass
+        with self._lock:
+            for rel in self._state:
+                self._state[rel] = {'status': VideoStatus.PENDING.value}
+        self._save_remote_state()
 
     def get_frames_path(self, rel_path: str) -> str:
         return self._frames_path(rel_path)
@@ -189,6 +243,17 @@ class VideoProcessor:
                     return rel
         return None
 
+    def _get_queue_position(self, rel_path: str) -> int:
+        with self._lock:
+            position = 0
+            for rel, entry in self._state.items():
+                if rel == rel_path:
+                    return position
+                status = entry.get('status')
+                if status in (VideoStatus.PENDING.value, VideoStatus.PROCESSING.value):
+                    position += 1
+        return 0
+
     def _process_video(self, rel_path: str) -> None:
         abs_path = os.path.join(self.videos_dir, rel_path)
         frames_path = self._frames_path(rel_path)
@@ -249,6 +314,7 @@ class VideoProcessor:
                     'status': VideoStatus.READY.value,
                     'progress': 100,
                     'frame_count': processed,
+                    'fps': self.target_fps,
                 }
 
             self.client.logger.info(f'Video processed: {rel_path} ({processed} frames)')

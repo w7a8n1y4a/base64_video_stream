@@ -56,11 +56,13 @@ class SplashScreen(Screen):
 
         r.paste_image(canvas, self._get_icon(), 0, 0)
 
-        right_x = 74
+        right_x = 72
         r.draw_text(canvas, right_x, 4, 'Pepeunit', font=r._font)
         r.draw_text(canvas, right_x, 16, 'Stream', font=r._font)
-        r.draw_text(canvas, right_x, 32, f'v{self.nav.version}', font=r._font_small)
-        r.draw_text(canvas, right_x, 50, 'AGPLv3', font=r._font_small)
+        r.draw_text(canvas, right_x, 30, f'v{self.nav.version}', font=r._font_small)
+        fps = int(self.nav.video_processor.target_fps)
+        r.draw_text(canvas, right_x, 40, f'FPS: {fps}', font=r._font_small)
+        r.draw_text(canvas, right_x, 52, 'AGPLv3', font=r._font_small)
 
         return canvas
 
@@ -69,7 +71,7 @@ class SplashScreen(Screen):
 
 
 class MainMenuScreen(Screen):
-    ITEMS = ['Библиотека', 'Рандом']
+    ITEMS = ['Библиотека', 'Рандом', 'Действия']
 
     def __init__(self, navigator: Navigator):
         super().__init__(navigator)
@@ -92,6 +94,8 @@ class MainMenuScreen(Screen):
                 self.nav.switch_screen(LibraryScreen(self.nav))
             elif self.selected == 1:
                 self._start_random()
+            elif self.selected == 2:
+                self.nav.switch_screen(ActionsScreen(self.nav))
         elif action == EncoderAction.LONG:
             self.nav.switch_screen(SplashScreen(self.nav))
 
@@ -167,6 +171,8 @@ class LibraryScreen(Screen):
                     self.nav.start_playback(ready)
                 else:
                     self.nav.show_message('Нет готовых\nвидео')
+            elif not entry.is_dir:
+                self.nav.switch_screen(VideoDetailScreen(self.nav, entry))
         elif action == EncoderAction.LONG:
             self._go_back()
 
@@ -183,3 +189,119 @@ class LibraryScreen(Screen):
             self.scroll_offset = self.selected
         elif self.selected >= self.scroll_offset + per_page:
             self.scroll_offset = self.selected - per_page + 1
+
+
+class VideoDetailScreen(Screen):
+    REFRESH_INTERVAL = 1.0
+
+    def __init__(self, navigator: Navigator, entry):
+        super().__init__(navigator)
+        self.entry = entry
+        self._last_refresh = 0.0
+        self._refresh_info()
+
+    def _refresh_info(self) -> None:
+        self.info = self.nav.video_processor.get_video_info(self.entry.rel_path)
+        self._last_refresh = time.monotonic()
+
+    def render(self) -> Image.Image:
+        if time.monotonic() - self._last_refresh >= self.REFRESH_INTERVAL:
+            self._refresh_info()
+
+        r = self.nav.renderer
+        canvas = r.create_canvas()
+
+        name = os.path.splitext(self.entry.name)[0]
+        name = r._truncate_text(name, r.width - 4, r._font)
+        r.draw_header(canvas, name)
+
+        y = r._content_y + 1
+        status = self.info.get('status', VideoStatus.PENDING)
+        target_fps = int(self.nav.video_processor.target_fps)
+
+        if status == VideoStatus.ERROR:
+            r.draw_text(canvas, 2, y, 'Статус: Ошибка', font=r._font_small)
+            y += r._line_height_small
+            error = self.info.get('error', 'Неизвестно')
+            r.draw_text_wrapped(canvas, 2, y, error, r.width - 4, font=r._font_small)
+
+        elif status == VideoStatus.PROCESSING:
+            progress = self.info.get('progress', 0)
+            r.draw_text(canvas, 2, y, f'Обработка: {progress}%', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=r._font_small)
+
+        elif status == VideoStatus.PENDING:
+            queue = self.info.get('queue_position', 0)
+            r.draw_text(canvas, 2, y, 'Статус: Ожидание', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'В очереди перед: {queue}', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'Целевой FPS: {target_fps}', font=r._font_small)
+
+        elif status == VideoStatus.READY:
+            fps_val = self.info.get('fps')
+            fps_str = str(int(fps_val)) if fps_val is not None else '?'
+            frames = self.info.get('frame_count', '?')
+            r.draw_text(canvas, 2, y, 'Статус: Готово', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'FPS: {fps_str}', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=r._font_small)
+
+        elif status == VideoStatus.WARNING:
+            file_fps = self.info.get('fps')
+            file_fps_str = str(int(file_fps)) if file_fps is not None else '?'
+            frames = self.info.get('frame_count', '?')
+            r.draw_text(canvas, 2, y, 'FPS не совпадает!', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'Сейчас: {target_fps}  Файл: {file_fps_str}', font=r._font_small)
+            y += r._line_height_small
+            r.draw_text(canvas, 2, y, f'Кадров: {frames}', font=r._font_small)
+            y += r._line_height_small
+            btn_text = 'Переделать'
+            tw = r._text_width(btn_text, r._font_small)
+            r.draw_rect(canvas, 1, y, tw + 4, r._line_height_small, fill=1)
+            r.draw_text(canvas, 3, y, btn_text, font=r._font_small, color=0)
+
+        return canvas
+
+    def on_action(self, action: EncoderAction) -> None:
+        if action == EncoderAction.LONG:
+            parent = os.path.dirname(self.entry.rel_path)
+            self.nav.switch_screen(LibraryScreen(self.nav, parent))
+        elif action == EncoderAction.ONE:
+            if self.info.get('status') == VideoStatus.WARNING:
+                self.nav.video_processor.force_reprocess(self.entry.rel_path)
+                self.nav.show_message('Переделка\nзапущена')
+                parent = os.path.dirname(self.entry.rel_path)
+                self.nav.switch_screen(LibraryScreen(self.nav, parent))
+
+
+class ActionsScreen(Screen):
+    ITEMS = ['Очистка txt', 'Информация']
+
+    def __init__(self, navigator: Navigator):
+        super().__init__(navigator)
+        self.selected = 0
+
+    def render(self) -> Image.Image:
+        r = self.nav.renderer
+        canvas = r.create_canvas()
+        items = [(name, None, None, 0) for name in self.ITEMS]
+        r.draw_menu(canvas, items, self.selected, 0, title='Действия')
+        return canvas
+
+    def on_action(self, action: EncoderAction) -> None:
+        if action == EncoderAction.LEFT:
+            self.selected = (self.selected + 1) % len(self.ITEMS)
+        elif action == EncoderAction.RIGHT:
+            self.selected = (self.selected - 1) % len(self.ITEMS)
+        elif action == EncoderAction.ONE:
+            if self.selected == 0:
+                self.nav.video_processor.clear_all_txt()
+                self.nav.show_message('Все txt\nудалены')
+            elif self.selected == 1:
+                self.nav.switch_screen(SplashScreen(self.nav))
+        elif action == EncoderAction.LONG:
+            self.nav.switch_screen(MainMenuScreen(self.nav))
