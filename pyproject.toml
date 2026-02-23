@@ -20,7 +20,7 @@ dependencies = [
   "numpy==2.2.6",
   "opencv-python==4.12.0.88",
   "paho-mqtt==2.1.0",
-  "pepeunit-client==1.1.0",
+  "pepeunit-client>=1.1.1",
   "psutil==7.2.1",
   "Pillow>=10.0.0",
   "pycparser==2.23",
