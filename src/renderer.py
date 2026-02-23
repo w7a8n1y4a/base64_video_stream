@@ -8,16 +8,7 @@ from .enums import VideoStatus
 from .image_utils import pixels_to_sh1106_base64
 
 
-FONT_SEARCH_PATHS = [
-    '/usr/share/fonts/TTF/DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/noto/NotoSans-Regular.ttf',
-    '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
-    '/usr/share/fonts/liberation/LiberationSans-Regular.ttf',
-    '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
-    '/usr/share/fonts/gnu-free/FreeSans.ttf',
-    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-]
+_FONT_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Roboto-Regular.ttf')
 
 ICONS_8X8 = {
     'check': [
@@ -99,13 +90,10 @@ class Renderer:
 
     @staticmethod
     def _load_font(size: int) -> ImageFont.ImageFont:
-        for path in FONT_SEARCH_PATHS:
-            if os.path.exists(path):
-                try:
-                    return ImageFont.truetype(path, size)
-                except Exception:
-                    continue
-        return ImageFont.load_default()
+        try:
+            return ImageFont.truetype(_FONT_PATH, size)
+        except Exception:
+            return ImageFont.load_default()
 
     @staticmethod
     def _calc_line_height(font: ImageFont.ImageFont) -> int:

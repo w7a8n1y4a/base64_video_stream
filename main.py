@@ -55,7 +55,6 @@ def main() -> None:
         video_processor=video_processor,
         renderer=renderer,
         version=version,
-        icon_path='icon.png',
     )
 
     client.logger.info('Synchronizing video library state...')

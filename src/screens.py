@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import base64
+import io
 import os
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from PIL import Image
 
 from .enums import EncoderAction, VideoStatus
-from .image_utils import process_image_to_mono
 
 if TYPE_CHECKING:
     from .navigator import Navigator
@@ -28,27 +29,33 @@ class Screen(ABC):
 
 
 class SplashScreen(Screen):
-    def __init__(self, navigator: Navigator):
-        super().__init__(navigator)
-        self._icon: Optional[Image.Image] = None
-        self._icon_loaded = False
+    _ICON_B64 = (
+        'iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQAAAACCEkxzAAAB1UlEQVR4nG2ST0iT'
+        'cRzGP7+vv9z7rrm9gtIfELdGIl4KkjL74w7JIqpDZENK2SEoiahDh9CSQQV2jjp5'
+        'yAo0yhBysaD0zepiUYNIigXu0EIr8I223GF/OjTBQ8/pw/M88FweWCUFIIA3XQGs'
+        'FXAqHV90xQlVoGRXIm8a0FjWOWW0v9Oc5/3m/BRAVTlXKefiMdCA6+UHEDB9u/6N'
+        'dYQkD8Dej6cvBgyBF7mNr+bzoMsl8zAIRZ7uXAQBp8m3PgaEswMPlm1QrtyO8G8b'
+        'KRuphYVb/iFF481UMvhnSNERjDfXjhkwmOyc8lxCURwdafu0OIP0B2fPeHqRUn9r'
+        'oq3JQehLhqfTDkLP7oJ2H0MQ+/WbxIyGQbPuTuKRpXh+6lfnsvkNpmNH6mQUIRW'
+        'Ye2IohMy2y5HoONCY2X91ZCvChapZz/VulNTcXbq/fVMv+vZPt/9oDbLW2dPeN96'
+        'T1vmGdW8L9Qdt5XuczU0Oz1frfCJ5w919wlGu6uGHyKECOhM5uzRpWYquwudS4Pg'
+        'XoevHQEPqa0xjXzFPZuMIE8Ut3qigcE+sebbBEwW5Vh8/AKCa7+3zx0BJzKw1QCF'
+        'jc7aUbCDU4rZA4Hsk3IoB0KJX3SKEWPxXmr9iZpVFmU8T1AAAAABJRU5ErkJggg=='
+    )
+    _icon_cache: Image.Image | None = None
 
-    def _ensure_icon(self) -> None:
-        if self._icon_loaded:
-            return
-        self._icon_loaded = True
-        icon_path = self.nav.icon_path
-        if icon_path and os.path.isfile(icon_path):
-            self._icon = process_image_to_mono(icon_path, 64, 64)
+    @classmethod
+    def _get_icon(cls) -> Image.Image:
+        if cls._icon_cache is None:
+            cls._icon_cache = Image.open(io.BytesIO(base64.b64decode(cls._ICON_B64)))
+        return cls._icon_cache
 
     def render(self) -> Image.Image:
-        self._ensure_icon()
         r = self.nav.renderer
         canvas = r.create_canvas()
 
-        if self._icon:
-            r.paste_image(canvas, self._icon, 0, 0)
-            r.draw_line(canvas, 64, 0, 64, 63)
+        r.paste_image(canvas, self._get_icon(), 0, 0)
+        r.draw_line(canvas, 64, 0, 64, 63)
 
         right_x = 68
         r.draw_text(canvas, right_x, 4, 'Video', font=r._font)
@@ -78,9 +85,9 @@ class MainMenuScreen(Screen):
 
     def on_action(self, action: EncoderAction) -> None:
         if action == EncoderAction.LEFT:
-            self.selected = min(self.selected + 1, len(self.ITEMS) - 1)
+            self.selected = (self.selected + 1) % len(self.ITEMS)
         elif action == EncoderAction.RIGHT:
-            self.selected = max(self.selected - 1, 0)
+            self.selected = (self.selected - 1) % len(self.ITEMS)
         elif action == EncoderAction.ONE:
             if self.selected == 0:
                 self.nav.switch_screen(LibraryScreen(self.nav))
@@ -140,13 +147,11 @@ class LibraryScreen(Screen):
             return
 
         if action == EncoderAction.LEFT:
-            if self.selected < len(self.entries) - 1:
-                self.selected += 1
-                self._adjust_scroll()
+            self.selected = (self.selected + 1) % len(self.entries)
+            self._adjust_scroll()
         elif action == EncoderAction.RIGHT:
-            if self.selected > 0:
-                self.selected -= 1
-                self._adjust_scroll()
+            self.selected = (self.selected - 1) % len(self.entries)
+            self._adjust_scroll()
         elif action == EncoderAction.ONE:
             entry = self.entries[self.selected]
             if entry.is_dir:

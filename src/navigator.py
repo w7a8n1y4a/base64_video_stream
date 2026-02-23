@@ -15,12 +15,10 @@ class Navigator:
         video_processor: VideoProcessor,
         renderer: Renderer,
         version: str,
-        icon_path: str = 'icon.png',
     ):
         self.video_processor = video_processor
         self.renderer = renderer
         self.version = version
-        self.icon_path = icon_path
 
         self._lock = threading.Lock()
         self._screen: Screen = SplashScreen(self)
