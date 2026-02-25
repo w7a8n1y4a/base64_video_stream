@@ -370,15 +370,16 @@ class Renderer:
     def _draw_overlay_label(self, img: Image.Image, text: str) -> None:
         draw = ImageDraw.Draw(img)
         font = self._font
-        tw = self._text_width(text, font)
-        th = self._line_height
+        bbox = font.getbbox(text)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
         pad_x, pad_y = 6, 3
         box_w = tw + pad_x * 2
         box_h = th + pad_y * 2
         bx = (self.width - box_w) // 2
         by = (self.height - box_h) // 2
-        draw.rectangle([bx, by, bx + box_w - 1, by + box_h - 1], fill=0, outline=1)
-        draw.text((bx + pad_x, by + pad_y), text, fill=1, font=font)
+        draw.rectangle([bx, by, bx + box_w, by + box_h - 1], fill=0, outline=1)
+        draw.text((bx + pad_x - bbox[0], by + pad_y - bbox[1]), text, fill=1, font=font)
 
     @property
     def items_per_page(self) -> int:
