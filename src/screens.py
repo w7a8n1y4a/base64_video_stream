@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from PIL import Image
 
 from .enums import EncoderAction, VideoStatus
-from .snake import SnakeOverlay
 
 if TYPE_CHECKING:
     from .navigator import Navigator
@@ -53,8 +52,6 @@ class SplashScreen(Screen):
 
     def __init__(self, navigator: Navigator):
         super().__init__(navigator)
-        r = navigator.renderer
-        self._snake = SnakeOverlay(r.width, r.height)
 
     def render(self) -> Image.Image:
         r = self.nav.renderer
@@ -70,7 +67,7 @@ class SplashScreen(Screen):
         r.draw_text(canvas, right_x, 40, f'FPS: {fps}', font=r._font_small)
         r.draw_text(canvas, right_x, 52, 'AGPLv3', font=r._font_small)
 
-        return self._snake.apply(canvas)
+        return canvas
 
     def on_action(self, action: EncoderAction) -> None:
         self.nav.switch_screen(MainMenuScreen(self.nav))

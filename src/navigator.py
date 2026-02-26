@@ -16,6 +16,7 @@ class Navigator:
         renderer: Renderer,
         version: str,
         seek_seconds: float = 5.0,
+        ui_fps: float = 5.0,
     ):
         self.video_processor = video_processor
         self.renderer = renderer
@@ -33,8 +34,13 @@ class Navigator:
         self._seek_overlay_until: float = 0
         self._paused: bool = False
 
+        self._ui_interval = 1.0 / ui_fps
+        self._last_ui_render = 0.0
+        self._cached_ui_frame: Optional[str] = None
+
     def handle_action(self, action: EncoderAction) -> None:
         with self._lock:
+            self._cached_ui_frame = None
             if self._temp_message and time.time() < self._temp_until:
                 return
 
@@ -69,10 +75,14 @@ class Navigator:
             if self._temp_message:
                 if time.time() > self._temp_until:
                     self._temp_message = None
+                    self._cached_ui_frame = None
                 else:
-                    return self._render_message(self._temp_message)
+                    return self._throttled_ui(
+                        lambda: self._render_message(self._temp_message),
+                    )
 
             if self._playback:
+                self._cached_ui_frame = None
                 if self._paused:
                     frame = self._playback.get_current_frame()
                 else:
@@ -90,10 +100,11 @@ class Navigator:
                     self._screen = self._return_screen
                     self._return_screen = None
 
-            return self._render_screen()
+            return self._throttled_ui(self._render_screen)
 
     def switch_screen(self, screen: Screen) -> None:
         self._screen = screen
+        self._cached_ui_frame = None
 
     def start_playback(self, video_paths: List[str], shuffle: bool = False) -> None:
         self._return_screen = self._screen
@@ -102,6 +113,16 @@ class Navigator:
     def show_message(self, text: str, duration: float = 1.0) -> None:
         self._temp_message = text
         self._temp_until = time.time() + duration
+        self._cached_ui_frame = None
+
+    def _throttled_ui(self, render_fn) -> Optional[str]:
+        now = time.monotonic()
+        if self._cached_ui_frame is not None and (now - self._last_ui_render) < self._ui_interval:
+            return None
+        frame = render_fn()
+        self._cached_ui_frame = frame
+        self._last_ui_render = now
+        return frame
 
     def _render_screen(self) -> str:
         canvas = self._screen.render()

@@ -31,7 +31,8 @@ def main() -> None:
         restart_mode=RestartMode.RESTART_EXEC,
     )
 
-    fps = getattr(client.settings, 'FPS', 10)
+    fps = getattr(client.settings, 'VIDEO_FPS', 10)
+    ui_fps = getattr(client.settings, 'UI_FPS', 5)
     width = getattr(client.settings, 'WIDTH', 128)
     height = getattr(client.settings, 'HEIGHT', 64)
     items_per_page = getattr(client.settings, 'ITEMS_PER_PAGE', None)
@@ -58,6 +59,7 @@ def main() -> None:
         renderer=renderer,
         version=version,
         seek_seconds=seek_seconds,
+        ui_fps=ui_fps,
     )
 
     client.logger.info('Synchronizing video library state...')
