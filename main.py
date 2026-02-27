@@ -38,6 +38,7 @@ def main() -> None:
     items_per_page = getattr(client.settings, 'ITEMS_PER_PAGE', None)
     seek_seconds = getattr(client.settings, 'SEEK_SECONDS', 5)
     client.cycle_speed = 1.0 / fps
+    _last_applied_fps = fps
 
     version = get_version()
 
@@ -82,6 +83,12 @@ def main() -> None:
             client_ref.logger.error(f'Input handler error: {e}')
 
     def on_output(client_ref: PepeunitClient) -> None:
+        nonlocal _last_applied_fps
+        current_fps = video_processor.target_fps
+        if current_fps != _last_applied_fps:
+            client_ref.cycle_speed = 1.0 / current_fps
+            _last_applied_fps = current_fps
+
         frame = navigator.get_next_frame()
         if frame:
             streamer.send_frame(frame)

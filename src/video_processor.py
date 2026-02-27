@@ -36,16 +36,21 @@ class VideoProcessor:
         self.client = client
         self.width = width
         self.height = height
-        self.target_fps = target_fps
+        self._default_fps = target_fps
         self.scan_interval = scan_interval
 
         self._state: Dict[str, dict] = {}
         self._lock = threading.Lock()
         self._running = False
+        self._abort_current = False
         self._thread: Optional[threading.Thread] = None
 
         os.makedirs(videos_dir, exist_ok=True)
         os.makedirs(frames_dir, exist_ok=True)
+
+    @property
+    def target_fps(self) -> float:
+        return getattr(self.client.settings, 'VIDEO_FPS', self._default_fps)
 
     def scan_and_sync(self) -> None:
         """Scan the videos directory and synchronize internal state with reality."""
@@ -127,6 +132,7 @@ class VideoProcessor:
 
     def force_reprocess(self, rel_path: str) -> None:
         """Delete the cached txt and mark the video as PENDING."""
+        self._abort_current = True
         frames_path = self._frames_path(rel_path)
         try:
             os.remove(frames_path)
@@ -137,7 +143,13 @@ class VideoProcessor:
         self._save_remote_state()
 
     def clear_all_txt(self) -> None:
-        """Delete all cached txt files and reset all statuses to PENDING."""
+        """Delete all cached txt files and reset all statuses to PENDING.
+
+        Signals any in-progress processing to abort so it doesn't
+        overwrite the PENDING state back to READY after we reset it.
+        """
+        self._abort_current = True
+
         for root, _dirs, files in os.walk(self.frames_dir):
             for f in files:
                 if f.lower().endswith('.txt'):
@@ -258,7 +270,9 @@ class VideoProcessor:
     def _process_video(self, rel_path: str) -> None:
         abs_path = os.path.join(self.videos_dir, rel_path)
         frames_path = self._frames_path(rel_path)
+        fps_snapshot = self.target_fps
 
+        self._abort_current = False
         with self._lock:
             self._state[rel_path] = {'status': VideoStatus.PROCESSING.value, 'progress': 0}
 
@@ -272,14 +286,14 @@ class VideoProcessor:
 
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
             src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-            frame_interval = src_fps / self.target_fps
+            frame_interval = src_fps / fps_snapshot
 
             frame_index = 0
             next_frame = 0.0
             processed = 0
 
             with open(frames_path, 'w', encoding='utf-8') as out:
-                while self._running:
+                while self._running and not self._abort_current:
                     if frame_index >= next_frame:
                         ret, frame = cap.read()
                         if not ret:
@@ -301,21 +315,29 @@ class VideoProcessor:
 
             cap.release()
 
-            if not self._running:
+            if not self._running or self._abort_current:
                 with self._lock:
                     self._state[rel_path] = {'status': VideoStatus.PENDING.value}
                 try:
                     os.remove(frames_path)
                 except OSError:
                     pass
+                self._abort_current = False
                 return
 
             with self._lock:
+                current = self._state.get(rel_path, {})
+                if current.get('status') != VideoStatus.PROCESSING.value:
+                    try:
+                        os.remove(frames_path)
+                    except OSError:
+                        pass
+                    return
                 self._state[rel_path] = {
                     'status': VideoStatus.READY.value,
                     'progress': 100,
                     'frame_count': processed,
-                    'fps': self.target_fps,
+                    'fps': fps_snapshot,
                 }
 
             self.client.logger.info(f'Video processed: {rel_path} ({processed} frames)')

@@ -22,7 +22,6 @@ class Navigator:
         self.renderer = renderer
         self.version = version
         self._seek_seconds = seek_seconds
-        self._seek_frames = max(1, int(seek_seconds * video_processor.target_fps))
 
         self._lock = threading.Lock()
         self._screen: Screen = SplashScreen(self)
@@ -37,6 +36,10 @@ class Navigator:
         self._ui_interval = 1.0 / ui_fps
         self._last_ui_render = 0.0
         self._cached_ui_frame: Optional[str] = None
+
+    @property
+    def _seek_frames(self) -> int:
+        return max(1, int(self._seek_seconds * self.video_processor.target_fps))
 
     def handle_action(self, action: EncoderAction) -> None:
         with self._lock:
