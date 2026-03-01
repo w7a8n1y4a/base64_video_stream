@@ -9,6 +9,8 @@ authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
 ]
 
+[images]
+example = "https://minio.pepemoss.com/public-data/video/base64_streaming.mp4"
 
 [env_description]
 VIDEO_FPS = "Частота кадров видеопотока (кадров в секунду)"

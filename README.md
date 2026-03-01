@@ -9,6 +9,10 @@ Version | 1.1.1
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 
+## Example
+
+<div align="center"><img align="center" src="https://minio.pepemoss.com/public-data/video/base64_streaming.mp4"></div>
+
 ## Env variable assignment
 
 1. `VIDEO_FPS` - Частота кадров видеопотока (кадров в секунду)
