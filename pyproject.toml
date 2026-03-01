@@ -1,7 +1,7 @@
 [project]
 name = "base64-video-stream"
-version = "1.1.0"
-description = "Stream base64-encoded video frames via pepeunit-client (MQTT/REST)."
+version = "1.1.1"
+description = "Stream base64-encoded video frames via pepeunit-client - MQTT"
 authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
 ]

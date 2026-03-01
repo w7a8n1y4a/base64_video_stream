@@ -13,7 +13,6 @@
         "encoder_action/pepeunit"
     ],
     "output_topic": [
-        "full_frame_stream/pepeunit",
-        "library_list/pepeunit"
+        "full_frame_stream/pepeunit"
     ]
 }
