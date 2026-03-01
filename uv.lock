@@ -18,7 +18,7 @@ wheels = [
 
 [[package]]
 name = "base64-video-stream"
-version = "1.1.0"
+version = "1.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "anyio" },
