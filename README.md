@@ -4,6 +4,7 @@ Parameter | Implementation
 -- | --
 Description | Стримит base64-кодированные кадры видео по `MQTT` через `pepeunit-client`. Поддерживает `UI` с навигацией по библиотеке видео, воспроизведение, паузу, перемотку и случайный порядок. Кадры предварительно обрабатываются (CLAHE, DoG, дизеринг Флойда-Стейнберга) для отображения на монохромных `OLED` дисплеях `128×64`
 Lang | `Python`
+Hardware | `Any-PC`
 Stack | `opencv`, `numpy`, `pillow`, `tqdm`, `pepeunit_client`
 Version | 1.1.1
 License | AGPL v3 License

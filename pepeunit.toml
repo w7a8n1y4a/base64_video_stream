@@ -2,6 +2,7 @@
 name = "Base64 Video Stream"
 description = "Стримит base64-кодированные кадры видео по `MQTT` через `pepeunit-client`. Поддерживает `UI` с навигацией по библиотеке видео, воспроизведение, паузу, перемотку и случайный порядок. Кадры предварительно обрабатываются (CLAHE, DoG, дизеринг Флойда-Стейнберга) для отображения на монохромных `OLED` дисплеях `128×64`"
 language = "Python"
+hardware = ["Any-PC"]
 stack = ["opencv", "numpy", "pillow", "tqdm", "pepeunit_client"]
 version = "1.1.1"
 license = "AGPL v3 License"
