@@ -10,8 +10,8 @@ authors = [
     {name = "Ivan Serebrennikov", email = "admin@silberworks.com"}
 ]
 
-[images]
-example = "https://minio.pepemoss.com/public-data/video/base64_streaming.mp4"
+[video]
+video = {preview = "https://minio.pepemoss.com/public-data/video/base64_streaming_prev.jpg", link = "https://www.youtube.com/watch?v=r1CpkXD_MJY"}
 
 [env_description]
 VIDEO_FPS = "Частота кадров видеопотока (кадров в секунду)"
@@ -20,7 +20,6 @@ WIDTH = "Ширина кадра в пикселях"
 HEIGHT = "Высота кадра в пикселях"
 ITEMS_PER_PAGE = "Количество элементов на странице в списке библиотеки"
 SEEK_SECONDS = "Шаг перемотки в секундах"
-
 
 [topic_assignment]
 "encoder_action/pepeunit" = "Принимает действие энкодера текстом: `One`, `Double`, `Long` (кнопка) или `Right`, `Left` (вращение)"

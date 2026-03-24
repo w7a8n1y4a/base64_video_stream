@@ -10,23 +10,27 @@ Version | 1.1.1
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 
-## Example
+## Video
 
-<div align="center"><img align="center" src="https://minio.pepemoss.com/public-data/video/base64_streaming.mp4"></div>
+[![video](https://minio.pepemoss.com/public-data/video/base64_streaming_prev.jpg)](https://www.youtube.com/watch?v=r1CpkXD_MJY)
 
 ## Env variable assignment
 
-1. `VIDEO_FPS` - Частота кадров видеопотока (кадров в секунду)
-2. `UI_FPS` - Частота обновления UI (кадров в секунду)
-3. `WIDTH` - Ширина кадра в пикселях
-4. `HEIGHT` - Высота кадра в пикселях
-5. `ITEMS_PER_PAGE` - Количество элементов на странице в списке библиотеки
-6. `SEEK_SECONDS` - Шаг перемотки в секундах
+Variable | Description
+-- | --
+`VIDEO_FPS` | Частота кадров видеопотока (кадров в секунду)
+`UI_FPS` | Частота обновления UI (кадров в секунду)
+`WIDTH` | Ширина кадра в пикселях
+`HEIGHT` | Высота кадра в пикселях
+`ITEMS_PER_PAGE` | Количество элементов на странице в списке библиотеки
+`SEEK_SECONDS` | Шаг перемотки в секундах
 
 ## Assignment of Device Topics
 
-- `encoder_action/pepeunit` - Принимает действие энкодера текстом: `One`, `Double`, `Long` (кнопка) или `Right`, `Left` (вращение)
-- `full_frame_stream/pepeunit` - Отправляет base64-кодированный кадр (исходящий) для отображения на дисплее `SH1106`
+Topic | Description
+-- | --
+`encoder_action/pepeunit` | Принимает действие энкодера текстом: `One`, `Double`, `Long` (кнопка) или `Right`, `Left` (вращение)
+`full_frame_stream/pepeunit` | Отправляет base64-кодированный кадр (исходящий) для отображения на дисплее `SH1106`
 
 ## Work algorithm
 
