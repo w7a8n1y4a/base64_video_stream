@@ -52,14 +52,23 @@ def apply_runtime_settings(
 
 
 def connect_mqtt(client: PepeunitClient) -> None:
+    mqtt = client.mqtt_client
     delay = _MQTT_RETRY_DELAY_START
     attempt = 1
     while True:
+        paho = getattr(mqtt, '_client', None)
+        if paho is not None and paho.is_connected():
+            return
+
         try:
-            client.mqtt_client.connect()
-            client.logger.info('MQTT connected')
+            mqtt.connect()
             return
         except Exception as e:
+            try:
+                mqtt.disconnect()
+            except Exception:
+                pass
+            mqtt._client = None
             client.logger.warning(
                 f'MQTT connect failed (attempt {attempt}): {e}, retry in {delay:.0f}s'
             )
@@ -75,7 +84,7 @@ def main() -> None:
         log_file_path='log.json',
         enable_mqtt=True,
         enable_rest=True,
-        restart_mode=RestartMode.RESTART_POPEN,
+        restart_mode=RestartMode.RESTART_EXEC,
     )
 
     settings = read_runtime_settings(client)
@@ -153,11 +162,7 @@ def main() -> None:
     client.logger.info('Background video processor started')
 
     connect_mqtt(client)
-    try:
-        client.download_schema(client.schema_file_path)
-    except Exception as e:
-        client.logger.warning(f'Failed to refresh schema from server: {e}')
-        client.subscribe_all_schema_topics()
+    client.subscribe_all_schema_topics()
 
     client.logger.info(f'Video Stream v{version} running at {settings["fps"]} FPS')
 
