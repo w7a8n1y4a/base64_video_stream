@@ -1,3 +1,7 @@
+import os
+import shutil
+import subprocess
+import tempfile
 import time
 
 from pepeunit_client import PepeunitClient, RestartMode
@@ -75,6 +79,48 @@ def connect_mqtt(client: PepeunitClient) -> None:
             time.sleep(delay)
             delay = min(delay * 2, _MQTT_RETRY_DELAY_MAX)
             attempt += 1
+
+
+def sync_and_restart(client: PepeunitClient) -> None:
+    uv = shutil.which('uv')
+    if uv is None:
+        client.logger.error('uv not found, cannot sync dependencies')
+        raise RuntimeError('uv not found')
+
+    result = subprocess.run([uv, 'sync'], cwd=os.getcwd(), capture_output=True, text=True)
+    if result.returncode != 0:
+        client.logger.error(f'uv sync failed: {result.stderr}')
+        raise RuntimeError('uv sync failed')
+    client.logger.info('Dependencies synced')
+
+    client.stop_main_cycle()
+    client.logger.info('Restarting via uv run')
+    os.execv(uv, [uv, 'run', 'main.py'])
+
+
+def handle_runtime_update(client: PepeunitClient, video_processor: VideoProcessor) -> None:
+    client.logger.info('Runtime update started')
+    video_processor.stop()
+    try:
+        client.mqtt_client.disconnect()
+    except Exception as e:
+        client.logger.warning(f'MQTT disconnect before update failed: {e}')
+
+    archive_path = os.path.join(
+        tempfile.gettempdir(),
+        f'update_{client.settings.unit_uuid}.tar.gz',
+    )
+    client.rest_client.download_update(archive_path)
+    client.logger.info('Success download update archive', file_only=True)
+
+    previous_mode = client.restart_mode
+    client.restart_mode = RestartMode.NO_RESTART
+    try:
+        client.update_device_program(archive_path)
+    finally:
+        client.restart_mode = previous_mode
+
+    sync_and_restart(client)
 
 
 def main() -> None:
@@ -155,6 +201,9 @@ def main() -> None:
         if frame:
             streamer.send_frame(frame)
 
+    client.set_custom_update_handler(
+        lambda client_ref, _payload: handle_runtime_update(client_ref, video_processor)
+    )
     client.set_mqtt_input_handler(on_input)
     client.set_output_handler(on_output)
 
