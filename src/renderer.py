@@ -103,6 +103,22 @@ class Renderer:
         self._menu_font_line_height = self._calc_line_height(self._menu_font)
         self._item_text_width = self.width - SCROLLBAR_WIDTH - ICON_SIZE - ICON_MARGIN - 4
 
+    def reconfigure(
+        self,
+        width: int,
+        height: int,
+        items_per_page: Optional[int] = None,
+    ) -> None:
+        self.width = width
+        self.height = height
+        self._content_height = self.height - self._content_y
+        auto = max(1, self._content_height // self._line_height_small)
+        self._items_per_page = items_per_page if items_per_page is not None else auto
+        self._menu_line_height = self._content_height // self._items_per_page
+        self._menu_font = self._find_best_menu_font(self._menu_line_height)
+        self._menu_font_line_height = self._calc_line_height(self._menu_font)
+        self._item_text_width = self.width - SCROLLBAR_WIDTH - ICON_SIZE - ICON_MARGIN - 4
+
     @staticmethod
     def _load_font(size: int) -> ImageFont.ImageFont:
         try:

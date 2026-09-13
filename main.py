@@ -1,7 +1,5 @@
-import re
-
 from pepeunit_client import PepeunitClient, RestartMode
-from pepeunit_client.enums import SearchTopicType, SearchScope
+from pepeunit_client.enums import BaseInputTopicType, SearchTopicType, SearchScope
 
 from src.enums import EncoderAction
 from src.renderer import Renderer
@@ -21,6 +19,33 @@ def get_version() -> str:
     return '?.?.?'
 
 
+def read_runtime_settings(client: PepeunitClient) -> dict:
+    return {
+        'fps': getattr(client.settings, 'VIDEO_FPS', 10),
+        'ui_fps': getattr(client.settings, 'UI_FPS', 5),
+        'width': getattr(client.settings, 'WIDTH', 128),
+        'height': getattr(client.settings, 'HEIGHT', 64),
+        'items_per_page': getattr(client.settings, 'ITEMS_PER_PAGE', None),
+        'seek_seconds': getattr(client.settings, 'SEEK_SECONDS', 5),
+    }
+
+
+def apply_runtime_settings(
+    client: PepeunitClient,
+    renderer: Renderer,
+    video_processor: VideoProcessor,
+    navigator: Navigator,
+) -> None:
+    settings = read_runtime_settings(client)
+    fps = settings['fps'] or 10
+    ui_fps = settings['ui_fps'] or 5
+
+    client.cycle_speed = 1.0 / fps
+    video_processor.apply_settings(settings['width'], settings['height'], fps)
+    renderer.reconfigure(settings['width'], settings['height'], settings['items_per_page'])
+    navigator.apply_settings(settings['seek_seconds'], ui_fps)
+
+
 def main() -> None:
     client = PepeunitClient(
         env_file_path='env.json',
@@ -28,21 +53,20 @@ def main() -> None:
         log_file_path='log.json',
         enable_mqtt=True,
         enable_rest=True,
-        restart_mode=RestartMode.RESTART_EXEC,
+        restart_mode=RestartMode.RESTART_POPEN,
     )
 
-    fps = getattr(client.settings, 'VIDEO_FPS', 10)
-    ui_fps = getattr(client.settings, 'UI_FPS', 5)
-    width = getattr(client.settings, 'WIDTH', 128)
-    height = getattr(client.settings, 'HEIGHT', 64)
-    items_per_page = getattr(client.settings, 'ITEMS_PER_PAGE', None)
-    seek_seconds = getattr(client.settings, 'SEEK_SECONDS', 5)
-    client.cycle_speed = 1.0 / fps
-    _last_applied_fps = fps
+    settings = read_runtime_settings(client)
+    client.cycle_speed = 1.0 / (settings['fps'] or 10)
+    _last_applied_fps = settings['fps']
 
     version = get_version()
 
-    renderer = Renderer(width, height, items_per_page=items_per_page)
+    renderer = Renderer(
+        settings['width'],
+        settings['height'],
+        items_per_page=settings['items_per_page'],
+    )
     streamer = Streamer(client)
     streamer.set_renderer(renderer)
 
@@ -50,17 +74,17 @@ def main() -> None:
         videos_dir='videos',
         frames_dir='frames',
         client=client,
-        width=width,
-        height=height,
-        target_fps=fps,
+        width=settings['width'],
+        height=settings['height'],
+        target_fps=settings['fps'],
     )
 
     navigator = Navigator(
         video_processor=video_processor,
         renderer=renderer,
         version=version,
-        seek_seconds=seek_seconds,
-        ui_fps=ui_fps,
+        seek_seconds=settings['seek_seconds'],
+        ui_fps=settings['ui_fps'],
     )
 
     client.logger.info('Synchronizing video library state...')
@@ -69,6 +93,13 @@ def main() -> None:
 
     def on_input(client_ref: PepeunitClient, msg) -> None:
         try:
+            env_topics = client_ref.schema.input_base_topic.get(
+                BaseInputTopicType.ENV_UPDATE_PEPEUNIT.value, []
+            )
+            if msg.topic in env_topics:
+                apply_runtime_settings(client_ref, renderer, video_processor, navigator)
+                return
+
             topic_parts = msg.topic.split('/')
             if len(topic_parts) == 3:
                 topic_name = client_ref.schema.find_topic_by_unit_node(
@@ -100,9 +131,13 @@ def main() -> None:
     client.logger.info('Background video processor started')
 
     client.mqtt_client.connect()
-    client.subscribe_all_schema_topics()
+    try:
+        client.download_schema(client.schema_file_path)
+    except Exception as e:
+        client.logger.warning(f'Failed to refresh schema from server: {e}')
+        client.subscribe_all_schema_topics()
 
-    client.logger.info(f'Video Stream v{version} running at {fps} FPS')
+    client.logger.info(f'Video Stream v{version} running at {settings["fps"]} FPS')
 
     try:
         client.run_main_cycle()

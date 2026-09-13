@@ -37,6 +37,11 @@ class Navigator:
         self._last_ui_render = 0.0
         self._cached_ui_frame: Optional[str] = None
 
+    def apply_settings(self, seek_seconds: float, ui_fps: float) -> None:
+        self._seek_seconds = seek_seconds
+        self._ui_interval = 1.0 / ui_fps
+        self._cached_ui_frame = None
+
     @property
     def _seek_frames(self) -> int:
         return max(1, int(self._seek_seconds * self.video_processor.target_fps))

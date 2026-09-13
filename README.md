@@ -6,7 +6,7 @@ Description | Стримит base64-кодированные кадры виде
 Lang | `Python`
 Hardware | `Any-PC`
 Stack | `opencv`, `numpy`, `pillow`, `tqdm`, `pepeunit_client`
-Version | 1.1.1
+Version | 1.3.0
 License | AGPL v3 License
 Authors | Ivan Serebrennikov <admin@silberworks.com>
 

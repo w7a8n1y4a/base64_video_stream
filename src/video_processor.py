@@ -52,6 +52,11 @@ class VideoProcessor:
     def target_fps(self) -> float:
         return getattr(self.client.settings, 'VIDEO_FPS', self._default_fps)
 
+    def apply_settings(self, width: int, height: int, target_fps: float) -> None:
+        self.width = width
+        self.height = height
+        self._default_fps = target_fps
+
     def scan_and_sync(self) -> None:
         """Scan the videos directory and synchronize internal state with reality."""
         stored = self._load_remote_state()
