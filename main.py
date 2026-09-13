@@ -1,3 +1,5 @@
+import time
+
 from pepeunit_client import PepeunitClient, RestartMode
 from pepeunit_client.enums import BaseInputTopicType, SearchTopicType, SearchScope
 
@@ -6,6 +8,9 @@ from src.renderer import Renderer
 from src.video_processor import VideoProcessor
 from src.streamer import Streamer
 from src.navigator import Navigator
+
+_MQTT_RETRY_DELAY_START = 2.0
+_MQTT_RETRY_DELAY_MAX = 30.0
 
 
 def get_version() -> str:
@@ -44,6 +49,23 @@ def apply_runtime_settings(
     video_processor.apply_settings(settings['width'], settings['height'], fps)
     renderer.reconfigure(settings['width'], settings['height'], settings['items_per_page'])
     navigator.apply_settings(settings['seek_seconds'], ui_fps)
+
+
+def connect_mqtt(client: PepeunitClient) -> None:
+    delay = _MQTT_RETRY_DELAY_START
+    attempt = 1
+    while True:
+        try:
+            client.mqtt_client.connect()
+            client.logger.info('MQTT connected')
+            return
+        except Exception as e:
+            client.logger.warning(
+                f'MQTT connect failed (attempt {attempt}): {e}, retry in {delay:.0f}s'
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, _MQTT_RETRY_DELAY_MAX)
+            attempt += 1
 
 
 def main() -> None:
@@ -130,7 +152,7 @@ def main() -> None:
     video_processor.start_background()
     client.logger.info('Background video processor started')
 
-    client.mqtt_client.connect()
+    connect_mqtt(client)
     try:
         client.download_schema(client.schema_file_path)
     except Exception as e:
