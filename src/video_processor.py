@@ -40,7 +40,7 @@ class VideoProcessor:
         self.scan_interval = scan_interval
 
         self._state: Dict[str, dict] = {}
-        self._last_saved_state: Optional[Dict[str, dict]] = None
+        self._last_saved_payload: Optional[str] = None
         self._lock = threading.Lock()
         self._running = False
         self._abort_current = False
@@ -62,45 +62,24 @@ class VideoProcessor:
         """Scan the videos directory and synchronize internal state with reality.
 
         Remote storage is read only when load_remote=True (startup).
-        A write happens later only if the catalog actually changed.
+        Periodic scans stay local; a write happens only if files or statuses changed.
         """
         if load_remote:
             stored = self._load_remote_state()
             with self._lock:
-                self._last_saved_state = {
-                    rel: dict(entry) for rel, entry in stored.items()
-                }
+                self._last_saved_payload = self._payload_for(stored)
         else:
             with self._lock:
                 stored = {rel: dict(entry) for rel, entry in self._state.items()}
-        current_files = self._find_all_mp4()
 
-        new_state: Dict[str, dict] = {}
-        for rel in current_files:
-            frames_path = self._frames_path(rel)
-            if rel in stored:
-                entry = dict(stored[rel])
-                old_status = entry.get('status', VideoStatus.PENDING.value)
-                if old_status == VideoStatus.READY.value:
-                    if os.path.isfile(frames_path):
-                        self._ensure_frame_metadata(entry, frames_path)
-                        new_state[rel] = entry
-                    else:
-                        new_state[rel] = {'status': VideoStatus.PENDING.value}
-                elif old_status == VideoStatus.PROCESSING.value:
-                    new_state[rel] = {'status': VideoStatus.PENDING.value}
-                else:
-                    new_state[rel] = entry
-            else:
-                if os.path.isfile(frames_path):
-                    new_state[rel] = self._build_ready_entry(frames_path)
-                else:
-                    new_state[rel] = {'status': VideoStatus.PENDING.value}
+        current_files = self._find_all_mp4()
+        new_state = self._merge_disk_state(stored, current_files)
 
         with self._lock:
             self._state = new_state
 
-        self._save_remote_state()
+        if load_remote or self._catalog_signature(stored) != self._catalog_signature(new_state):
+            self._save_remote_state()
 
     def get_status(self, rel_path: str) -> VideoStatus:
         with self._lock:
@@ -405,15 +384,70 @@ class VideoProcessor:
                     result.append(rel)
         return sorted(result)
 
+    def _merge_disk_state(self, stored: Dict[str, dict], current_files: List[str]) -> Dict[str, dict]:
+        new_state: Dict[str, dict] = {}
+        for rel in current_files:
+            frames_path = self._frames_path(rel)
+            if rel in stored:
+                entry = dict(stored[rel])
+                old_status = entry.get('status', VideoStatus.PENDING.value)
+                if old_status == VideoStatus.READY.value:
+                    if os.path.isfile(frames_path):
+                        self._ensure_frame_metadata(entry, frames_path)
+                        new_state[rel] = entry
+                    else:
+                        new_state[rel] = {'status': VideoStatus.PENDING.value}
+                elif old_status == VideoStatus.PROCESSING.value:
+                    new_state[rel] = {'status': VideoStatus.PENDING.value}
+                else:
+                    new_state[rel] = entry
+            else:
+                if os.path.isfile(frames_path):
+                    new_state[rel] = self._build_ready_entry(frames_path)
+                else:
+                    new_state[rel] = {'status': VideoStatus.PENDING.value}
+        return new_state
+
+    @staticmethod
+    def _catalog_signature(state: Dict[str, dict]) -> tuple:
+        return tuple(
+            sorted((rel, entry.get('status')) for rel, entry in state.items())
+        )
+
+    @staticmethod
+    def _payload_for(state: Dict[str, dict]) -> str:
+        return json.dumps(state, sort_keys=True)
+
+    def _parse_remote_payload(self, raw: str) -> Dict[str, dict]:
+        if not raw:
+            return {}
+        data = json.loads(raw)
+        if isinstance(data, str):
+            data = json.loads(data)
+        if (
+            isinstance(data, dict)
+            and 'state' in data
+            and not any(isinstance(v, dict) and 'status' in v for v in data.values())
+        ):
+            inner = data['state']
+            if isinstance(inner, str):
+                inner = json.loads(inner)
+            data = inner
+        if not isinstance(data, dict):
+            return {}
+        return {
+            rel: dict(entry)
+            for rel, entry in data.items()
+            if isinstance(entry, dict)
+        }
+
     def _load_remote_state(self, retries: int = 3) -> Dict[str, dict]:
         for attempt in range(retries):
             try:
                 raw = self.client.rest_client.get_state_storage()
-                if raw:
-                    data = json.loads(raw)
-                    if isinstance(data, dict):
-                        return data
-                return {}
+                parsed = self._parse_remote_payload(raw)
+                self.client.logger.info('State storage GET')
+                return parsed
             except Exception as e:
                 if attempt < retries - 1:
                     delay = 2 ** attempt
@@ -431,14 +465,15 @@ class VideoProcessor:
     def _save_remote_state(self, retries: int = 3) -> None:
         with self._lock:
             snapshot = {rel: dict(info) for rel, info in self._state.items()}
-            if snapshot == self._last_saved_state:
+            payload = self._payload_for(snapshot)
+            if payload == self._last_saved_payload:
                 return
-        payload = json.dumps(snapshot)
         for attempt in range(retries):
             try:
                 self.client.rest_client.set_state_storage(payload)
                 with self._lock:
-                    self._last_saved_state = snapshot
+                    self._last_saved_payload = payload
+                self.client.logger.info(f'State storage SET ({len(snapshot)} videos)')
                 return
             except Exception as e:
                 if attempt < retries - 1:
