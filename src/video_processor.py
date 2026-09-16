@@ -40,6 +40,7 @@ class VideoProcessor:
         self.scan_interval = scan_interval
 
         self._state: Dict[str, dict] = {}
+        self._last_saved_state: Optional[Dict[str, dict]] = None
         self._lock = threading.Lock()
         self._running = False
         self._abort_current = False
@@ -57,9 +58,21 @@ class VideoProcessor:
         self.height = height
         self._default_fps = target_fps
 
-    def scan_and_sync(self) -> None:
-        """Scan the videos directory and synchronize internal state with reality."""
-        stored = self._load_remote_state()
+    def scan_and_sync(self, load_remote: bool = False) -> None:
+        """Scan the videos directory and synchronize internal state with reality.
+
+        Remote storage is read only when load_remote=True (startup).
+        A write happens later only if the catalog actually changed.
+        """
+        if load_remote:
+            stored = self._load_remote_state()
+            with self._lock:
+                self._last_saved_state = {
+                    rel: dict(entry) for rel, entry in stored.items()
+                }
+        else:
+            with self._lock:
+                stored = {rel: dict(entry) for rel, entry in self._state.items()}
         current_files = self._find_all_mp4()
 
         new_state: Dict[str, dict] = {}
@@ -417,11 +430,15 @@ class VideoProcessor:
 
     def _save_remote_state(self, retries: int = 3) -> None:
         with self._lock:
-            snapshot = dict(self._state)
+            snapshot = {rel: dict(info) for rel, info in self._state.items()}
+            if snapshot == self._last_saved_state:
+                return
         payload = json.dumps(snapshot)
         for attempt in range(retries):
             try:
                 self.client.rest_client.set_state_storage(payload)
+                with self._lock:
+                    self._last_saved_state = snapshot
                 return
             except Exception as e:
                 if attempt < retries - 1:

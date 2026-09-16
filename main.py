@@ -165,7 +165,7 @@ def main() -> None:
     )
 
     client.logger.info('Synchronizing video library state...')
-    video_processor.scan_and_sync()
+    video_processor.scan_and_sync(load_remote=True)
     client.logger.info('Video library synchronized')
 
     def on_input(client_ref: PepeunitClient, msg) -> None:
